@@ -34,7 +34,6 @@ namespace StudentEntityFramework.Controllers
                 StudentName = s.StudentName,
                 Address = s.Address,
                 Email = s.Email,
-                //lo ultimi que se  agrego
                 DOB = s.DOB,
             });
             // OK -200 Success
@@ -42,7 +41,7 @@ namespace StudentEntityFramework.Controllers
         }
 
         [HttpGet]
-        [Route("{id:int}", Name = "GetStudentById")]
+        [Route("{id:int}" , Name = "GetStudentById")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -158,7 +157,6 @@ namespace StudentEntityFramework.Controllers
             existingStudent.StudentName = model.StudentName;
             existingStudent.Email = model.Email;
             existingStudent.Address = model.Address;
-            // lo ultimo que se  agrego
             existingStudent.DOB = model.DOB;
             _dbContext.SaveChanges();
             return NoContent();
