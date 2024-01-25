@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using StudentEntityFramework.Data;
 using StudentEntityFramework.Models;
 using System.Runtime.CompilerServices;
@@ -25,17 +26,20 @@ namespace StudentEntityFramework.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         //[EnableCors(PolicyName = "AllowOnlyMicrosoft")]
-        public ActionResult<IEnumerable<StudentDTO>> GetStudents()
+        public async Task < ActionResult<IEnumerable<StudentDTO>>> GetStudents()
         {
             _logger.LogInformation("GetStudents method started");
-            var students = _dbContext.Students.Select(s => new StudentDTO()
+            //var students = await  _dbContext.Students.ToListAsync();
+
+            var students = await _dbContext.Students.Select(s => new StudentDTO()
             {
                 Id = s.Id,
                 StudentName = s.StudentName,
                 Address = s.Address,
                 Email = s.Email,
                 DOB = s.DOB,
-            });
+            }).ToListAsync();
+
             // OK -200 Success
             return Ok(students);
         }
@@ -46,7 +50,7 @@ namespace StudentEntityFramework.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<StudentDTO> GetStudentById(int id)
+        public async Task<ActionResult<StudentDTO>> GetStudentByIdAsync(int id)
         {
             // BadRequest - 400 - Badrequest - Client error
             if (id <= 0)
@@ -54,7 +58,7 @@ namespace StudentEntityFramework.Controllers
                 _logger.LogInformation("Bad Request");
                 return BadRequest();
             }
-            var student = _dbContext.Students.Where(n => n.Id == id).FirstOrDefault();
+            var student = await _dbContext.Students.Where(n => n.Id == id).FirstOrDefaultAsync();
 
             // NotFound - 404 - NotFound - Client error
             if (student == null)
@@ -68,6 +72,7 @@ namespace StudentEntityFramework.Controllers
                 StudentName = student.StudentName,
                 Email = student.Email,
                 Address = student.Address,
+                DOB= student.DOB,
             };
 
             // OK -200 Success
@@ -80,13 +85,13 @@ namespace StudentEntityFramework.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<StudentDTO> GetStudentByName(string name)
+        public async Task<ActionResult<StudentDTO>> GetStudentByNameAsync(string name)
         {
             // BadRequest - 400 - Badrequest - Client error
             if (string.IsNullOrEmpty(name))
                 return BadRequest();
 
-            var student = _dbContext.Students.Where(n => n.StudentName == name).FirstOrDefault();
+            var student = await _dbContext.Students.Where(n => n.StudentName == name).FirstOrDefaultAsync();
 
             // NotFound - 404 - NotFound - Client error
             if (student == null)
@@ -99,7 +104,8 @@ namespace StudentEntityFramework.Controllers
                 Id = student.Id,
                 StudentName = student.StudentName,
                 Email = student.Email,
-                Address = student.Address
+                Address = student.Address,
+                DOB= student.DOB,
             };
             return Ok(studentDTO);
         }
@@ -110,7 +116,7 @@ namespace StudentEntityFramework.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<StudentDTO> CreateStudent([FromBody] StudentDTO model)
+        public async Task<ActionResult<StudentDTO>> CreateStudentAsync([FromBody] StudentDTO model)
         {
             //if (!ModelState.IsValid)
             //  return BadRequest(ModelState);
@@ -130,13 +136,15 @@ namespace StudentEntityFramework.Controllers
                 StudentName = model.StudentName,
                 Address = model.Address,
                 Email = model.Email,
+                DOB = model.DOB,
             };
-            _dbContext.Students.Add(student);
-            _dbContext.SaveChanges();
+           await  _dbContext.Students.AddAsync(student);
+           await  _dbContext.SaveChangesAsync();
             model.Id = student.Id;
             // new student details
             return CreatedAtRoute("GetStudentById", new { id = model.Id },model);
         }
+
 
         [HttpPut]
         [Route("Update", Name = "Update")]
@@ -145,35 +153,49 @@ namespace StudentEntityFramework.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<StudentDTO> UpdateStudent([FromBody] StudentDTO model)
+        public async Task<ActionResult<StudentDTO>> UpdateStudentAsync ([FromBody] StudentDTO model)
         {
             if (model == null || model.Id <= 0)
                 return BadRequest();
-            var existingStudent = _dbContext.Students.Where(s => s.Id == model.Id).FirstOrDefault();
+            var existingStudent = await _dbContext.Students.AsNoTracking().Where(s => s.Id == model.Id).FirstOrDefaultAsync();
 
             if (existingStudent == null)
                 return NotFound();
 
-            existingStudent.StudentName = model.StudentName;
-            existingStudent.Email = model.Email;
-            existingStudent.Address = model.Address;
-            existingStudent.DOB = model.DOB;
-            _dbContext.SaveChanges();
+
+            var newRecord = new Student()
+            {
+                Id = existingStudent.Id,
+                StudentName = model.StudentName,
+                Email = model.Email,
+                Address = model.Address,
+                DOB = model.DOB,
+            };
+            _dbContext.Students.Update(newRecord);
+
+            //existingStudent.StudentName = model.StudentName;
+            //existingStudent.Email = model.Email;
+            //existingStudent.Address = model.Address;
+            //existingStudent.DOB = model.DOB;
+
+           await  _dbContext.SaveChangesAsync();
             return NoContent();
         }
 
+
         [HttpPatch]
-        [Route("{id:int}/UpdatePartial", Name = "Partial ")]
+        [Route("{id:int}/UpdatePartial")]
         // api/srudent/1/updatepartial
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult UpdateStudentPartial(int id, [FromBody] JsonPatchDocument<StudentDTO> patchDocument)
+        public async Task<ActionResult> UpdateStudentPartialAsync(int id, [FromBody] JsonPatchDocument<StudentDTO> patchDocument)
         {
             if (patchDocument == null || id <= 0)
                 return BadRequest();
-            var existingStudent = _dbContext.Students.Where(s => s.Id == id).FirstOrDefault();
+
+            var existingStudent = await _dbContext.Students.Where(s => s.Id == id).FirstOrDefaultAsync();
 
             if (existingStudent == null)
                 return NotFound();
@@ -185,6 +207,7 @@ namespace StudentEntityFramework.Controllers
                 Email = existingStudent.Email,
                 Address = existingStudent.Address
             };
+
             patchDocument.ApplyTo(studentDTO, ModelState);
 
             if (!ModelState.IsValid)
@@ -193,23 +216,26 @@ namespace StudentEntityFramework.Controllers
             existingStudent.StudentName = studentDTO.StudentName;
             existingStudent.Email = studentDTO.Email;
             existingStudent.Address = studentDTO.Address;
-            _dbContext.SaveChanges();
+            existingStudent.DOB = studentDTO.DOB;
+
+          await  _dbContext.SaveChangesAsync();
             // 204 - NoContent
             return NoContent();
         }
+
 
         [HttpDelete("Delete/{id}", Name = "DeleteStudentById ")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<bool> DeleteStudent(int id)
+        public async Task<ActionResult<bool>> DeleteStudentAsync(int id)
         {
             // BadRequest - 400 - Badrequest - Client error
             if (id <= 0)
                 return BadRequest();
 
-            var student = _dbContext.Students.Where(n => n.Id == id).FirstOrDefault();
+            var student = await _dbContext.Students.Where(n => n.Id == id).FirstOrDefaultAsync();
 
             // NotFound - 404 - NotFound - Client error
             if (student == null)
@@ -218,11 +244,9 @@ namespace StudentEntityFramework.Controllers
             }
 
             _dbContext.Students.Remove(student);
-            _dbContext.SaveChanges();
+          await  _dbContext.SaveChangesAsync();
             // OK - 200 - Success
             return Ok(true);
         }
-
-
     }
 }
